@@ -80,6 +80,7 @@ test:
   commands:
     - multiqc --version
 
+
 about:
   home: http://multiqc.info
   license: GNU General Public License v3 (GPLv3)

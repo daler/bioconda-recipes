@@ -17,31 +17,8 @@ This script simulates a travis-ci run on the local machine by using the current
 values in .travis.yml. It is intended to be run in the top-level directory of
 the bioconda-recipes repository.
 
-Any additional arguments to this script are interpreted as arguments to be
-passed to `bioconda-utils build`. For example, to build a single recipe (or
-glob of recipes):
-
-    simulate-travis.py --packages mypackagename bioconductor-*
-
-or modify the log level:
-
-    simulate-travis.py --packages mypackagename --loglevel=debug
-
-Notes
------
-
-Any environmental variables will be passed to `scripts/travis-run.sh` and will
-override any defaults detected in .travis.yml. Currently the only variables
-useful to modify are TRAVIS_OS_NAME and BIOCONDA_UTILS_TAG.  For example you
-can set TRAVIS_OS_NAME to "linux" while running on a Mac to build packages in
-a docker container:
-
-    TRAVIS_OS_NAME=linux ./simulate-travis.py
-
-Or specify a different commit of `bioconda_utils`:
-
-    BIOCONDA_UTILS_TAG=63543b34 ./simulate-travis.py
-
+This mostly adjusts environmental variables so that `scripts/travis-run.sh`
+will run correctly. See that script for what environment variables can be set.
 """
 
 ap = argparse.ArgumentParser(usage=usage)
@@ -57,6 +34,16 @@ ap.add_argument('--config-from-github', action='store_true', help='''Download
 ap.add_argument('--disable-docker', action='store_true', help='''By default, if
                 the OS is linux then we use Docker. Use this argument to
                 disable this behavior''')
+ap.add_argument('--packages', nargs='+', help='''Specify globs of
+                package names to lint/build. These globs will be added to the
+                BIOCONDA_UTILS_LINT_ARGS and BIOCONDA_UTILS_BUILD_ARGS
+                environment variables. You may want to use those env vars
+                directly if you need more control.''')
+ap.add_argument('--force', action='store_true', help='''Force the building of
+                the specified packages. If specified here, this will force both
+                the linting and building steps. Use the
+                BIOCONDA_UTILS_LINT_ARGS and BIOCONDA_UTILS_BUILD_ARGS env vars
+                directly for more control.''')
 args, extra = ap.parse_known_args()
 
 HERE = os.path.abspath(os.path.dirname(__file__))
@@ -142,11 +129,21 @@ if os.environ.get('TRAVIS', None) != 'true':
     else:
         env['TRAVIS_OS_NAME'] = 'linux'
 
+    # Travis-specific env vars expected by scripts/travis-run.sh
     env['TRAVIS_BRANCH'] = 'false'
     env['TRAVIS_PULL_REQUEST'] = 'false'
     env['TRAVIS_REPO_SLUG'] = 'false'
 
     # Any additional arguments from the command line are added here.
+
+    if args.packages:
+        env['BIOCONDA_UTILS_LINT_ARGS'] += ' --packages {}'.format(" ".join(args.packages))
+        env['BIOCONDA_UTILS_BUILD_ARGS'] += ' --packages {}'.format(" ".join(args.packages))
+
+    if args.force:
+        env['BIOCONDA_UTILS_LINT_ARGS'] += ' --force '
+        env['BIOCONDA_UTILS_BUILD_ARGS'] += ' --force '
+
     env['BIOCONDA_UTILS_BUILD_ARGS'] += ' ' + ' '.join(extra)
     env['BIOCONDA_UTILS_BUILD_ARGS'] = ' '.join(shlex.split(env['BIOCONDA_UTILS_BUILD_ARGS']))
 
